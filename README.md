@@ -17,7 +17,7 @@ Implemented:
 - Runs readiness gates and returns a non-zero exit code when any gate fails.
 - Runs TSEL against the mock-generator packets before building study prompts.
 - Enforces exactly one source event per prompt and one explicit flat-versus-TSEL comparison per matched pair.
-- Requires each pair to be submitted simultaneously in separate fresh chats.
+- Requires each pair to be submitted in separate fresh chats within 1,000 milliseconds, with both prompts sent before either response becomes visible.
 - Validates the browser-based public free-LLM manifest, prompt budget, and evidence-capture contract.
 - Runs a local pilot using neutral packet validation and dry-run exposure planning.
 
@@ -46,7 +46,8 @@ python -m pytest -q
 - Testing projects remain independent repositories under the shared project base.
 - Public manifests must not include answer-key fields.
 - Private key transformations are written only to ignored local folders.
-- Each free-LLM prompt contains one event. Events are never combined into a prompt stream.
+- Each free-LLM prompt contains one event. The flat and TSEL prompts in a pair use the identical source event and question, public pair IDs are opaque, and events are never combined into a prompt stream or shared chat context.
+- Readiness requires a pair execution form for UTC submission times, measured submission gap, separate chat identifiers, visible model/mode, and four prompt/response screenshots.
 - Each TSEL field condition receives a fresh strict-flat control built from the identical event and question.
 - Public-web evidence requires prompt and response screenshots, raw response logs, visible site or model labels, timestamps, and delivery-integrity results.
 

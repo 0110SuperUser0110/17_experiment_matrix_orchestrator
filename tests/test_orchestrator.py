@@ -10,6 +10,7 @@ from experiment_matrix_orchestrator.orchestrator import (
     OFFICIAL_FIELDS,
     PROJECTS,
     RESEARCH_QUESTIONS,
+    _check_free_llm_manifest,
     _check_scorer_key,
     _render_flat,
     _schema_matrix,
@@ -38,7 +39,7 @@ def test_all_three_approved_research_questions_are_present():
     assert [row["rq_id"] for row in RESEARCH_QUESTIONS] == ["RQ1", "RQ2", "RQ3"]
     assert "structural characteristics" in RESEARCH_QUESTIONS[0]["question"]
     assert RESEARCH_QUESTIONS[1]["question"] == "To what extent does TSEL preserve temporal and stimulus-response structure in generated mock olfactory data compared with flattened representations of the same data?"
-    assert "inspectable, reproducible, and clearly labeled mock" in RESEARCH_QUESTIONS[2]["question"]
+    assert RESEARCH_QUESTIONS[2]["question"] == "How consistently does TSEL support inspectable, reproducible, and clearly labeled mock olfactory data representation before downstream computational modeling?"
 
 
 def test_schema_matrix_has_matching_tsel_and_flat_pairs(tmp_path: Path):
@@ -100,3 +101,56 @@ def test_public_example_matrix_is_valid_json():
     assert data["domain"] == "olfaction"
     assert [row["rq_id"] for row in data["research_questions"]] == ["RQ1", "RQ2", "RQ3"]
     assert len(data["official_fields"]) == 7
+
+
+def test_public_manifest_requires_one_event_concurrent_isolated_pairs(tmp_path: Path):
+    execution_form = tmp_path / "pair.json"
+    execution_form.write_text(
+        json.dumps(
+            {
+                "included_event_count_per_prompt": 1,
+                "same_source_event_required": True,
+                "max_submission_delta_ms": 1_000,
+            }
+        ),
+        encoding="utf-8",
+    )
+    rows = [
+        {
+            "pair_id": "internal-pair",
+            "public_pair_id": "pair-opaque",
+            "pair_role": role,
+            "event_id": "event-1",
+            "source_event_index": 0,
+            "question_id": "q1",
+            "included_event_count": 1,
+        }
+        for role in ("flat", "comparison")
+    ]
+    manifest = {
+        "one_event_per_prompt": True,
+        "simultaneous_pair_submission_required": True,
+        "fresh_isolated_context_per_prompt_required": True,
+        "max_pair_submission_delta_ms": 1_000,
+        "both_submitted_before_either_response_visible_required": True,
+        "rows": rows,
+        "matched_pairs": [
+            {
+                "pair_id": "internal-pair",
+                "max_submission_delta_ms": 1_000,
+                "both_submitted_before_either_response_visible_required": True,
+                "pair_execution_form": execution_form.name,
+            }
+        ],
+    }
+    path = tmp_path / "manifest.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    gate = _check_free_llm_manifest(path)
+
+    assert gate.passed is True
+    manifest["rows"][1]["event_id"] = "event-2"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    gate = _check_free_llm_manifest(path)
+    assert gate.passed is False
+    assert "identical source event" in gate.detail

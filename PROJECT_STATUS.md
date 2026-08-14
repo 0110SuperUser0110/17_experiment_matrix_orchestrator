@@ -21,6 +21,8 @@ Ready:
 - cumulative one-through-seven TSEL field comparisons plus publication-scope candidate fields
 - one event per prompt invariant
 - simultaneous flat/TSEL matched-pair manifest
+- 1,000 ms paired-submission window with both prompts sent before either response is visible
+- per-pair execution log and screenshot evidence contract
 - browser-based public free-LLM evidence protocol without APIs or provider credentials
 
 Remaining before confirmatory collection is complete:

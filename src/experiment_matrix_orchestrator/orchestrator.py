@@ -70,7 +70,7 @@ RESEARCH_QUESTIONS = [
     },
     {
         "rq_id": "RQ3",
-        "question": "How consistently does the proposed framework support inspectable, reproducible, and clearly labeled mock olfactory data representation before downstream computational modeling?",
+        "question": "How consistently does TSEL support inspectable, reproducible, and clearly labeled mock olfactory data representation before downstream computational modeling?",
         "evidence_paths": ["mock_manifest_validation", "private_key_boundary", "reproducibility_evidence_packaging", "hash_records"],
     },
 ]
@@ -239,10 +239,12 @@ def run_readiness(base: str | Path | None = None) -> ReadinessReport:
                 str(paths["llm_exposure"] / "outputs" / "official_one_event_readiness"),
                 "--max-packets",
                 "3",
-                "--source-events-per-packet",
+                "--selected-source-events-per-packet",
                 "1",
                 "--max-prompt-chars",
                 "12000",
+                "--max-pair-submission-delta-ms",
+                "1000",
             ],
             paths["llm_exposure"],
             timeout=120,
@@ -627,6 +629,12 @@ def _check_free_llm_manifest(path: Path) -> Gate:
         pairs = manifest.get("matched_pairs", [])
         if not manifest.get("one_event_per_prompt") or not manifest.get("simultaneous_pair_submission_required"):
             raise ValueError("manifest lacks one-event or simultaneous-pair controls")
+        if not manifest.get("fresh_isolated_context_per_prompt_required"):
+            raise ValueError("manifest permits shared prompt context")
+        if manifest.get("max_pair_submission_delta_ms") != 1_000:
+            raise ValueError("manifest does not enforce the 1,000 ms simultaneous-submission window")
+        if not manifest.get("both_submitted_before_either_response_visible_required"):
+            raise ValueError("manifest permits one response to appear before the matched prompt is submitted")
         if not rows or not pairs:
             raise ValueError("manifest contains no prompt rows or matched pairs")
         if any(row.get("included_event_count") != 1 for row in rows):
@@ -637,6 +645,24 @@ def _check_free_llm_manifest(path: Path) -> Gate:
                 raise ValueError(f"invalid matched pair: {pair.get('pair_id')}")
             if len({row.get("event_id") for row in pair_rows}) != 1:
                 raise ValueError(f"pair does not use one identical source event: {pair.get('pair_id')}")
+            if len({row.get("source_event_index") for row in pair_rows}) != 1:
+                raise ValueError(f"pair does not use one identical source-event index: {pair.get('pair_id')}")
+            if len({row.get("question_id") for row in pair_rows}) != 1:
+                raise ValueError(f"pair does not use one identical question: {pair.get('pair_id')}")
+            if len({row.get("public_pair_id") for row in pair_rows}) != 1:
+                raise ValueError(f"pair lacks one opaque public pair ID: {pair.get('pair_id')}")
+            if pair.get("max_submission_delta_ms") != 1_000:
+                raise ValueError(f"pair lacks the simultaneous-submission window: {pair.get('pair_id')}")
+            if not pair.get("both_submitted_before_either_response_visible_required"):
+                raise ValueError(f"pair permits sequential response exposure: {pair.get('pair_id')}")
+            execution_form = path.parent / str(pair.get("pair_execution_form", ""))
+            if not execution_form.is_file():
+                raise ValueError(f"pair lacks its execution evidence form: {pair.get('pair_id')}")
+            execution = _load_json(execution_form)
+            if execution.get("included_event_count_per_prompt") != 1 or not execution.get("same_source_event_required"):
+                raise ValueError(f"pair execution form violates the one-event matched-pair rule: {pair.get('pair_id')}")
+            if execution.get("max_submission_delta_ms") != 1_000:
+                raise ValueError(f"pair execution form lacks the simultaneous-submission window: {pair.get('pair_id')}")
     except Exception as exc:
         return Gate("public-free-llm-manifest-contract", False, str(exc))
     return Gate("public-free-llm-manifest-contract", True, f"{len(pairs)} matched one-event pairs; {len(rows)} prompts")

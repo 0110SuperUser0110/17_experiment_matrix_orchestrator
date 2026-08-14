@@ -12,7 +12,7 @@
     },
     {
       "rq_id": "RQ3",
-      "question": "How consistently does the proposed framework support inspectable, reproducible, and clearly labeled mock olfactory data representation before downstream computational modeling?"
+      "question": "How consistently does TSEL support inspectable, reproducible, and clearly labeled mock olfactory data representation before downstream computational modeling?"
     }
   ],
   "official_fields": [
