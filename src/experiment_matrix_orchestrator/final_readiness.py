@@ -35,6 +35,8 @@ REQUIRED_REPOSITORIES = {
     "13_reproducibility_evidence_packager": "7ef341d",
     "14_mock_generator_coordination": "f6ee330",
     "15_multi_llm_representation_exposure_runner": "0c79b06",
+    "16_schema_field_envelope_comparison_planner": "02fb86c",
+    "17_experiment_matrix_orchestrator": "df99de2",
 }
 
 
