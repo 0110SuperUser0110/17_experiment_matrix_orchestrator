@@ -2,6 +2,8 @@
 
 Local orchestration tool for freezing thesis data-collection inputs and checking readiness across the independent TSEL testing projects.
 
+The final design treats seven as the width of the named TSEL envelope, not as a claim that all seven values must always be populated. The structural study exhaustively evaluates all 128 populated/empty masks while retaining every named key. The public-LLM confirmation uses selected full, one-empty, balanced two-empty, and all-empty masks with recursively flattened equal-facts controls.
+
 This repository is a research tool. It does not belong inside the TSEL repository and does not replace the individual testing projects. It prepares local run artifacts, checks project boundaries, validates manifests, and writes readiness reports before official data collection.
 
 ## Current Status
@@ -32,7 +34,10 @@ $env:PYTHONPATH = "src"
 python -m experiment_matrix_orchestrator.cli prepare
 python -m experiment_matrix_orchestrator.cli readiness
 python -m experiment_matrix_orchestrator.cli pilot
+python -m experiment_matrix_orchestrator.cli final-data-readiness
 ```
+
+`final-data-readiness` returns exit code `1` when the frozen instrument is not ready, `2` when collection can begin but final public-interface evidence is incomplete, and `0` only when final data evidence is complete.
 
 Run tests:
 

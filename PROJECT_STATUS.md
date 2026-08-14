@@ -18,7 +18,9 @@ Ready:
 - exact approved RQ1, RQ2, and RQ3 text
 - mock-generator to TSEL source path
 - strict atomic flat baseline without nested temporal metadata
-- cumulative one-through-seven TSEL field comparisons plus publication-scope candidate fields
+- exhaustive 128-mask populated-value occupancy study while retaining all seven named TSEL keys
+- two occupancy lanes and two empty-value encodings across 49 public mock events
+- frozen 126-pair-per-interface public-LLM confirmatory instrument with equal-facts and practical-minimal controls
 - one event per prompt invariant
 - simultaneous flat/TSEL matched-pair manifest
 - 1,000 ms paired-submission window with both prompts sent before either response is visible
@@ -27,7 +29,6 @@ Ready:
 
 Remaining before confirmatory collection is complete:
 
-- freeze the stratified event sample and run count
 - execute every frozen matched pair on the selected free interfaces
 - retain the final screenshots, logs, response forms, hashes, and transport-failure ledger
 - complete the independent scoring and statistical analysis
