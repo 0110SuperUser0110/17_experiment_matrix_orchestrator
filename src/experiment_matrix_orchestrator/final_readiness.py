@@ -32,7 +32,7 @@ REQUIRED_REPOSITORIES = {
     "10_classical_ml_evaluator": "a9940e1",
     "11_sequence_time_series_evaluator": "6ef3918",
     "12_optional_token_model_evaluator": "1a25454",
-    "13_reproducibility_evidence_packager": "7ef341d",
+    "13_reproducibility_evidence_packager": "0f01ddf",
     "14_mock_generator_coordination": "f6ee330",
     "15_multi_llm_representation_exposure_runner": "0c79b06",
     "16_schema_field_envelope_comparison_planner": "02fb86c",
