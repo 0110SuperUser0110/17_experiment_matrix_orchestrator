@@ -8,7 +8,7 @@
     },
     {
       "rq_id": "RQ2",
-      "question": "To what extent does the proposed temporal encoding layer preserve temporal and stimulus-response structure in free olfactory reference data and generated mock olfactory data?"
+      "question": "To what extent does TSEL preserve temporal and stimulus-response structure in generated mock olfactory data compared with flattened representations of the same data?"
     },
     {
       "rq_id": "RQ3",
@@ -29,8 +29,12 @@
     "collection_quality"
   ],
   "model_policy": {
-    "temperature": 0,
-    "response_schema": "short-json-or-short-text",
-    "retry_policy": "single retry only for transport failure"
+    "collection_path": "public free web interfaces; no provider APIs",
+    "one_event_per_prompt": true,
+    "matched_flat_tsel_pair": true,
+    "simultaneous_submission": true,
+    "fresh_isolated_context_per_prompt": true,
+    "response_schema": "concise JSON with delivery integrity token",
+    "retry_policy": "repeat the complete matched pair only after documented transport failure"
   }
 }

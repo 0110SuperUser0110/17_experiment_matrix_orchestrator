@@ -15,13 +15,21 @@ PROJECTS = {
     "tsel": "TSEL",
     "neutral": "01_neutral_blind_evaluation_runner",
     "scorer": "02_private_answer_key_scorer",
+    "timeline": "03_timeline_recovery_scorer",
+    "missingness": "04_missingness_collection_quality_scorer",
     "flat_minimal": "05_flat_minimal_baseline",
     "flat_enriched": "06_flat_enriched_baseline",
+    "time_series_baseline": "07_time_series_feature_baseline",
     "schema_ablation": "08_schema_ablation",
+    "rule_based": "09_rule_based_evaluator",
+    "classical_ml": "10_classical_ml_evaluator",
+    "sequence": "11_sequence_time_series_evaluator",
+    "token_model": "12_optional_token_model_evaluator",
     "repro": "13_reproducibility_evidence_packager",
     "mock_coordination": "14_mock_generator_coordination",
     "llm_exposure": "15_multi_llm_representation_exposure_runner",
     "schema_planner": "16_schema_field_envelope_comparison_planner",
+    "orchestrator": "17_experiment_matrix_orchestrator",
     "mock_generator": "olfactory mock Generator/mock-olfactory-generator",
 }
 
@@ -37,6 +45,18 @@ OFFICIAL_FIELDS = [
 
 CANDIDATE_FIELDS = ["assertion_basis", "collection_quality"]
 
+FIELD_ENVELOPES = [
+    ("tsel_1_timestamp", OFFICIAL_FIELDS[:1], "thesis"),
+    ("tsel_2_time_modality", OFFICIAL_FIELDS[:2], "thesis"),
+    ("tsel_3_time_modality_source", OFFICIAL_FIELDS[:3], "thesis"),
+    ("tsel_4_add_signal_type", OFFICIAL_FIELDS[:4], "thesis"),
+    ("tsel_5_add_value", OFFICIAL_FIELDS[:5], "thesis"),
+    ("tsel_6_add_unit", OFFICIAL_FIELDS[:6], "thesis"),
+    ("tsel_7_full", OFFICIAL_FIELDS, "thesis"),
+    ("tsel_8_add_assertion_basis", [*OFFICIAL_FIELDS, "assertion_basis"], "publication"),
+    ("tsel_9_add_collection_quality", [*OFFICIAL_FIELDS, "assertion_basis", "collection_quality"], "publication"),
+]
+
 RESEARCH_QUESTIONS = [
     {
         "rq_id": "RQ1",
@@ -45,7 +65,7 @@ RESEARCH_QUESTIONS = [
     },
     {
         "rq_id": "RQ2",
-        "question": "To what extent does the proposed temporal encoding layer preserve temporal and stimulus-response structure in free olfactory reference data and generated mock olfactory data?",
+        "question": "To what extent does TSEL preserve temporal and stimulus-response structure in generated mock olfactory data compared with flattened representations of the same data?",
         "evidence_paths": ["neutral_blind_tsel_run", "timeline_recovery", "flattened_baselines", "multi_llm_representation_exposure"],
     },
     {
@@ -57,12 +77,24 @@ RESEARCH_QUESTIONS = [
 
 QUESTION_SET = [
     {
-        "question_id": "timeline_summary",
-        "question": "Return the observable temporal sequence summary with unsupported claims marked unresolved.",
+        "question_id": "temporal_placement",
+        "question": "For this one event, report observable timestamp or start, end, duration, resolution, uncertainty, event kind, and explicit temporal relations; mark unsupported items unresolved.",
     },
     {
         "question_id": "missingness_summary",
-        "question": "Return the missing or weakened evidence signals without inventing absent timing or stimulus facts.",
+        "question": "For this one event, return missing or weakened evidence signals without inventing absent timing or stimulus facts.",
+    },
+    {
+        "question_id": "stimulus_response_linkage",
+        "question": "For this one event, report only explicit stimulus-response linkage and leave absent linkage unresolved.",
+    },
+    {
+        "question_id": "simplicity_control",
+        "question": "For this one event, distinguish atomic observed facts from structural temporal information without inferring absent facts.",
+    },
+    {
+        "question_id": "temporal_reconstruction",
+        "question": "Reconstruct this one event with its supported temporal fields and explicit unresolved fields.",
     },
 ]
 
@@ -77,6 +109,7 @@ class PreparedArtifacts:
     schema_matrix: str
     schema_plan_output: str
     exposure_manifest: str
+    free_llm_manifest: str
     evidence_manifest: str
 
     def to_record(self) -> dict[str, str]:
@@ -116,7 +149,7 @@ class ReadinessReport:
 def prepare_artifacts(base: str | Path | None = None) -> PreparedArtifacts:
     paths = _paths(base)
     dataset = paths["mock_generator"] / "datasets" / "blind_olfactory_validation_001"
-    tsel_outputs = paths["tsel"] / "output" / "thesis_validation"
+    neutral_actual_report = paths["neutral"] / "outputs" / "official_readiness" / "actual_run" / "neutral_run_report.json"
 
     public_manifest = paths["mock_coordination"] / "outputs" / "official_readiness" / "public_mock_manifest.json"
     neutral_manifest = paths["neutral"] / "outputs" / "official_readiness" / "public_packet_manifest.json"
@@ -137,10 +170,11 @@ def prepare_artifacts(base: str | Path | None = None) -> PreparedArtifacts:
     _write_json(scorer_answer_key, _scorer_answer_key(dataset / "answer_key_private.json"))
 
     representation_dir = paths["llm_exposure"] / "work" / "official" / "representations"
-    representations = _write_representations(tsel_outputs, representation_dir)
+    representations = _write_representations(neutral_actual_report, representation_dir)
     _write_json(schema_matrix, _schema_matrix(representations))
     _write_json(exposure_manifest, _exposure_manifest(representations))
-    _write_json(evidence_manifest, _evidence_manifest(public_manifest, neutral_manifest, schema_matrix, exposure_manifest, tsel_outputs))
+    free_llm_manifest = paths["llm_exposure"] / "outputs" / "official_one_event_readiness" / "free_llm_packet_manifest.json"
+    _write_json(evidence_manifest, _evidence_manifest(public_manifest, neutral_manifest, schema_matrix, exposure_manifest, neutral_actual_report))
 
     return PreparedArtifacts(
         base=str(_base(base)),
@@ -151,6 +185,7 @@ def prepare_artifacts(base: str | Path | None = None) -> PreparedArtifacts:
         schema_matrix=str(schema_matrix),
         schema_plan_output=str(schema_plan_output),
         exposure_manifest=str(exposure_manifest),
+        free_llm_manifest=str(free_llm_manifest),
         evidence_manifest=str(evidence_manifest),
     )
 
@@ -167,15 +202,59 @@ def run_readiness(base: str | Path | None = None) -> ReadinessReport:
     gates.append(_run_command_gate("mock-generator-validation", [sys.executable, "-m", "mock_olfactory_generator", "validate-blind-dataset", "--input", "datasets/blind_olfactory_validation_001", "--source-profile", "source_profiles/human_olfaction_composite_profile.json"], paths["mock_generator"], timeout=180, pythonpath="src"))
     gates.append(_run_command_gate("public-mock-manifest", [sys.executable, "-m", "mock_generator_coordination.cli", prepared.public_manifest, str(paths["mock_coordination"] / "outputs" / "official_readiness" / "public_manifest.report.json")], paths["mock_coordination"], timeout=60, pythonpath="src"))
     gates.append(_run_command_gate("neutral-blind-dry-run", [sys.executable, "-m", "neutral_blind_runner.cli", "--config", prepared.neutral_config], paths["neutral"], timeout=120, pythonpath="src"))
+    neutral_actual_config = paths["neutral"] / "outputs" / "official_readiness" / "runner_config.actual.json"
+    gates.append(_run_neutral_official(paths, neutral_actual_config))
+    if gates[-1].passed:
+        prepared = prepare_artifacts(base)
     gates.append(_check_json_gate("scorer-answer-key-contract", Path(prepared.scorer_answer_key), _check_scorer_key))
+    gates.append(
+        _run_command_gate(
+            "official-private-scorer",
+            [
+                sys.executable,
+                "-m",
+                "private_answer_key_scorer.cli",
+                str(paths["neutral"] / "outputs" / "official_readiness" / "actual_run" / "neutral_run_report.json"),
+                prepared.scorer_answer_key,
+                "--output",
+                str(paths["scorer"] / "scorer_results" / "official_readiness_score.local.json"),
+                "--sanitized-summary-output",
+                str(paths["scorer"] / "scorer_results" / "official_readiness_summary.local.json"),
+            ],
+            paths["scorer"],
+            timeout=60,
+            pythonpath="src",
+        )
+    )
     gates.append(_run_command_gate("schema-field-plan", [sys.executable, "-m", "schema_field_envelope_planner.cli", prepared.schema_matrix, prepared.schema_plan_output], paths["schema_planner"], timeout=60, pythonpath="src"))
     gates.append(_run_command_gate("multi-llm-exposure-dry-run", [sys.executable, "-m", "multi_llm_representation_runner.cli", prepared.exposure_manifest, str(paths["llm_exposure"] / "outputs" / "official_dry_run"), "--dry-run"], paths["llm_exposure"], timeout=60, pythonpath="src"))
+    gates.append(
+        _run_command_gate(
+            "public-free-llm-one-event-packets",
+            [
+                sys.executable,
+                "-m",
+                "multi_llm_representation_runner.free_llm_packets",
+                str(paths["neutral"] / "outputs" / "official_readiness" / "actual_run" / "neutral_run_report.json"),
+                str(paths["llm_exposure"] / "outputs" / "official_one_event_readiness"),
+                "--max-packets",
+                "3",
+                "--source-events-per-packet",
+                "1",
+                "--max-prompt-chars",
+                "12000",
+            ],
+            paths["llm_exposure"],
+            timeout=120,
+            pythonpath="src",
+        )
+    )
+    gates.append(_check_free_llm_manifest(Path(prepared.free_llm_manifest)))
     gates.extend(_check_tsel_bundles(paths["tsel"]))
     gates.append(_run_command_gate("reproducibility-manifest", [sys.executable, "-m", "reproducibility_evidence_packager.cli", prepared.evidence_manifest, str(paths["repro"] / "outputs" / "official_readiness" / "evidence_report.json"), "--allow-external"], paths["repro"], timeout=60, pythonpath="src"))
-    gates.append(_check_model_adapters(Path(prepared.exposure_manifest)))
+    gates.append(_check_public_web_pilot(paths["llm_exposure"] / "outputs" / "public_free_llm_pilot_2026-08-14"))
 
-    synapse_warning = "Synapse bundle has noncanonical signal-type warnings; policy is documented as non-blocking for pilot and blocking for final Chapter 4 claims if left unexplained."
-    warnings.append(synapse_warning)
+    warnings.append("Public free-LLM web interfaces do not expose stable exact model versions in every case; record the visible site, mode, date, screenshots, integrity token, and raw response without inferring an unshown version.")
     blocking_failures = [gate for gate in gates if gate.blocking and not gate.passed]
     report = ReadinessReport(
         ready=not blocking_failures,
@@ -316,50 +395,47 @@ def _scorer_answer_key(answer_key_path: Path) -> dict[str, Any]:
     }
 
 
-def _write_representations(tsel_outputs: Path, output_dir: Path) -> dict[str, str]:
+def _write_representations(neutral_run_report: Path, output_dir: Path) -> dict[str, str]:
     output_dir.mkdir(parents=True, exist_ok=True)
-    bundles = {
-        "gas": tsel_outputs / "olfactory_gas.bundle.json",
-        "synapse": tsel_outputs / "synapse_olfaction.bundle.json",
-    }
+    report = _load_json(neutral_run_report)
+    successful = [row for row in report.get("packets", []) if row.get("status") == "success" and row.get("output_path")]
+    if len(successful) < 3:
+        raise ValueError(f"one-event readiness matrix requires at least three successful mock-generator packets; found {len(successful)}")
     representations: dict[str, str] = {}
-    for case_id, bundle in bundles.items():
-        events = _load_events(bundle, limit=25)
-        tsel_path = output_dir / f"{case_id}_tsel_full_7.txt"
-        flat_path = output_dir / f"{case_id}_flat_full_7.txt"
-        reduced_path = output_dir / f"{case_id}_tsel_reduced_no_context.txt"
-        candidate_path = output_dir / f"{case_id}_tsel_candidate_plus_assertion_basis.txt"
-        tsel_path.write_text(_render_tsel(events, include_context=True), encoding="utf-8")
+    for packet in successful[:3]:
+        case_id = str(packet["packet_id"])
+        events = _load_events(Path(str(packet["output_path"])), limit=1)
+        if len(events) != 1:
+            raise ValueError(f"readiness representation must contain exactly one source event: {case_id}")
+        flat_path = output_dir / f"{case_id}__flat.json"
         flat_path.write_text(_render_flat(events), encoding="utf-8")
-        reduced_path.write_text(_render_tsel(events, include_context=False), encoding="utf-8")
-        candidate_path.write_text(_render_candidate(events), encoding="utf-8")
-        representations[f"{case_id}_tsel_full_7"] = str(tsel_path)
-        representations[f"{case_id}_flat_full_7"] = str(flat_path)
-        representations[f"{case_id}_tsel_reduced_no_context"] = str(reduced_path)
-        representations[f"{case_id}_flat_reduced_no_context"] = str(flat_path)
-        representations[f"{case_id}_tsel_candidate_plus_assertion_basis"] = str(candidate_path)
-        representations[f"{case_id}_flat_candidate_plus_assertion_basis"] = str(flat_path)
+        for pattern_id, fields, _scope in FIELD_ENVELOPES:
+            tsel_path = output_dir / f"{case_id}__{pattern_id}.json"
+            tsel_path.write_text(_render_tsel_fields(events, fields), encoding="utf-8")
+            representations[f"{case_id}__{pattern_id}__tsel"] = str(tsel_path)
+            representations[f"{case_id}__{pattern_id}__flat"] = str(flat_path)
     return representations
 
 
 def _schema_matrix(representations: dict[str, str]) -> dict[str, Any]:
     conditions: list[dict[str, Any]] = []
-    for case_id in ("gas", "synapse"):
-        conditions.extend(
-            [
-                _condition(case_id, "tsel_full_7", "official_7", "tsel", "thesis", OFFICIAL_FIELDS, representations[f"{case_id}_tsel_full_7"]),
-                _condition(case_id, "flat_full_7", "official_7", "flat", "thesis", OFFICIAL_FIELDS, representations[f"{case_id}_flat_full_7"]),
-                _condition(case_id, "tsel_reduced_no_context", "reduced_no_context", "tsel", "thesis", OFFICIAL_FIELDS[:-1], representations[f"{case_id}_tsel_reduced_no_context"]),
-                _condition(case_id, "flat_reduced_no_context", "reduced_no_context", "flat", "thesis", OFFICIAL_FIELDS[:-1], representations[f"{case_id}_flat_reduced_no_context"]),
-                _condition(case_id, "tsel_candidate_plus_assertion_basis", "candidate_plus_assertion_basis", "tsel", "publication", [*OFFICIAL_FIELDS, "assertion_basis"], representations[f"{case_id}_tsel_candidate_plus_assertion_basis"]),
-                _condition(case_id, "flat_candidate_plus_assertion_basis", "candidate_plus_assertion_basis", "flat", "publication", [*OFFICIAL_FIELDS, "assertion_basis"], representations[f"{case_id}_flat_candidate_plus_assertion_basis"]),
-            ]
-        )
+    case_ids = _representation_case_ids(representations)
+    for case_id in case_ids:
+        for pattern_id, fields, scope in FIELD_ENVELOPES:
+            family = pattern_id.removeprefix("tsel_")
+            conditions.extend(
+                [
+                    _condition(case_id, pattern_id, family, "tsel", scope, fields, representations[f"{case_id}__{pattern_id}__tsel"]),
+                    _condition(case_id, f"flat_for_{pattern_id}", family, "flat", scope, fields, representations[f"{case_id}__{pattern_id}__flat"]),
+                ]
+            )
     return {
         "research_questions": RESEARCH_QUESTIONS,
         "official_fields": OFFICIAL_FIELDS,
         "candidate_fields": CANDIDATE_FIELDS,
-        "cases": [{"case_id": "gas", "questions": QUESTION_SET}, {"case_id": "synapse", "questions": QUESTION_SET}],
+        "one_event_per_representation": True,
+        "simultaneous_flat_tsel_pair_required": True,
+        "cases": [{"case_id": case_id, "questions": QUESTION_SET} for case_id in case_ids],
         "models": [_echo_model()],
         "conditions": conditions,
     }
@@ -378,21 +454,25 @@ def _condition(case_id: str, suffix: str, family: str, kind: str, scope: str, fi
 
 
 def _exposure_manifest(representations: dict[str, str]) -> dict[str, Any]:
+    matrix = _schema_matrix(representations)
     cases = []
-    for case_id in ("gas", "synapse"):
+    for case in matrix["cases"]:
+        case_id = case["case_id"]
+        case_conditions = [row for row in matrix["conditions"] if row["condition_id"].startswith(f"{case_id}_")]
         cases.append(
             {
                 "case_id": case_id,
-                "representations": {
-                    "tsel_full_7": representations[f"{case_id}_tsel_full_7"],
-                    "flat_full_7": representations[f"{case_id}_flat_full_7"],
-                    "tsel_reduced_no_context": representations[f"{case_id}_tsel_reduced_no_context"],
-                    "flat_reduced_no_context": representations[f"{case_id}_flat_reduced_no_context"],
-                },
+                "included_event_count": 1,
+                "representations": {row["condition_id"]: row["artifact_path"] for row in case_conditions},
                 "questions": QUESTION_SET,
             }
         )
-    return {"research_questions": RESEARCH_QUESTIONS, "models": [_echo_model()], "cases": cases}
+    return {"research_questions": RESEARCH_QUESTIONS, "study_role": "local readiness dry run only", "one_event_per_prompt": True, "models": [_echo_model()], "cases": cases}
+
+
+def _representation_case_ids(representations: dict[str, str]) -> list[str]:
+    suffix = f"__{FIELD_ENVELOPES[0][0]}__tsel"
+    return sorted(key[: -len(suffix)] for key in representations if key.endswith(suffix))
 
 
 def _echo_model() -> dict[str, Any]:
@@ -417,10 +497,7 @@ def _evidence_manifest(*paths: Path) -> dict[str, Any]:
 def _check_repositories(paths: dict[str, Path]) -> list[Gate]:
     gates = []
     for key, path in paths.items():
-        if key == "mock_generator":
-            gates.append(Gate(f"repo-exists-{key}", path.exists(), str(path)))
-        else:
-            gates.append(Gate(f"repo-exists-{key}", path.exists() and (path / ".git").exists(), str(path)))
+        gates.append(Gate(f"repo-exists-{key}", path.exists() and (path / ".git").exists(), str(path)))
     return gates
 
 
@@ -474,6 +551,36 @@ def _run_neutral_pilot(paths: dict[str, Path], pilot_dir: Path) -> Gate:
     return Gate("pilot-neutral-first-five", allowed, detail[-1000:] if detail else json.dumps(statuses, sort_keys=True))
 
 
+def _run_neutral_official(paths: dict[str, Path], config_path: Path) -> Gate:
+    command = [sys.executable, "-m", "neutral_blind_runner.cli", "--config", str(config_path)]
+    env = os.environ.copy()
+    env["PYTHONPATH"] = "src"
+    try:
+        completed = subprocess.run(command, cwd=paths["neutral"], env=env, capture_output=True, text=True, timeout=300)
+    except Exception as exc:
+        return Gate("neutral-blind-actual-run", False, f"{type(exc).__name__}: {exc}")
+    report_path = paths["neutral"] / "outputs" / "official_readiness" / "actual_run" / "neutral_run_report.json"
+    if not report_path.exists():
+        return Gate("neutral-blind-actual-run", False, "neutral_run_report.json was not created")
+    report = _load_json(report_path)
+    packets = report.get("packets", [])
+    statuses = report.get("statuses", {})
+    allowed = (
+        isinstance(packets, list)
+        and len(packets) == 90
+        and isinstance(statuses, dict)
+        and set(statuses) <= {"success", "safe_failure"}
+        and sum(int(value) for value in statuses.values()) == 90
+    )
+    detail = {
+        "command_exit_code": completed.returncode,
+        "packet_count": len(packets) if isinstance(packets, list) else None,
+        "statuses": statuses,
+        "policy": "success and safe_failure are both eligible for private expected-status scoring",
+    }
+    return Gate("neutral-blind-actual-run", allowed, json.dumps(detail, sort_keys=True))
+
+
 def _subset_answer_key(answer_key_path: Path, count: int) -> dict[str, Any]:
     key = _load_json(answer_key_path)
     packets = key.get("packets", [])
@@ -513,15 +620,40 @@ def _check_tsel_bundles(tsel: Path) -> list[Gate]:
     return gates
 
 
-def _check_model_adapters(exposure_manifest: Path) -> Gate:
-    manifest = _load_json(exposure_manifest)
-    model_ids = [model.get("model_id", "") for model in manifest.get("models", []) if isinstance(model, dict)]
-    if not model_ids:
-        return Gate("external-model-adapters", False, "no model adapters configured")
-    only_echo = all("echo" in model_id for model_id in model_ids)
-    if only_echo:
-        return Gate("external-model-adapters", False, "only local echo readiness adapter is configured; real multi-LLM collection still needs provider command adapters", blocking=False)
-    return Gate("external-model-adapters", True, ", ".join(model_ids))
+def _check_free_llm_manifest(path: Path) -> Gate:
+    try:
+        manifest = _load_json(path)
+        rows = manifest.get("rows", [])
+        pairs = manifest.get("matched_pairs", [])
+        if not manifest.get("one_event_per_prompt") or not manifest.get("simultaneous_pair_submission_required"):
+            raise ValueError("manifest lacks one-event or simultaneous-pair controls")
+        if not rows or not pairs:
+            raise ValueError("manifest contains no prompt rows or matched pairs")
+        if any(row.get("included_event_count") != 1 for row in rows):
+            raise ValueError("a prompt row contains more or fewer than one event")
+        for pair in pairs:
+            pair_rows = [row for row in rows if row.get("pair_id") == pair.get("pair_id")]
+            if len(pair_rows) != 2 or {row.get("pair_role") for row in pair_rows} != {"flat", "comparison"}:
+                raise ValueError(f"invalid matched pair: {pair.get('pair_id')}")
+            if len({row.get("event_id") for row in pair_rows}) != 1:
+                raise ValueError(f"pair does not use one identical source event: {pair.get('pair_id')}")
+    except Exception as exc:
+        return Gate("public-free-llm-manifest-contract", False, str(exc))
+    return Gate("public-free-llm-manifest-contract", True, f"{len(pairs)} matched one-event pairs; {len(rows)} prompts")
+
+
+def _check_public_web_pilot(path: Path) -> Gate:
+    required_sites = ["one_event_simultaneous", "copilot_one_event_simultaneous", "perplexity_one_event_simultaneous"]
+    missing: list[str] = []
+    for site_dir in required_sites:
+        folder = path / site_dir
+        if not (folder / "run_log.json").exists():
+            missing.append(f"{site_dir}/run_log.json")
+        if len(list(folder.glob("*.png"))) < 2:
+            missing.append(f"{site_dir} screenshots")
+    if missing:
+        return Gate("public-web-pilot-evidence", False, "missing: " + ", ".join(missing), blocking=False)
+    return Gate("public-web-pilot-evidence", True, "Gemini, Copilot, and Perplexity one-event pilot logs and screenshots present", blocking=False)
 
 
 def _load_events(path: Path, *, limit: int) -> list[dict[str, Any]]:
@@ -532,37 +664,45 @@ def _load_events(path: Path, *, limit: int) -> list[dict[str, Any]]:
     return [event for event in events[:limit] if isinstance(event, dict)]
 
 
-def _render_tsel(events: list[dict[str, Any]], *, include_context: bool) -> str:
+def _render_tsel_fields(events: list[dict[str, Any]], fields: list[str]) -> str:
+    if len(events) != 1:
+        raise ValueError("prompt representation must contain exactly one event")
     rows = []
     for event in events:
-        row = {field: event.get(field) for field in OFFICIAL_FIELDS if include_context or field != "contextual_metadata"}
+        row: dict[str, Any] = {}
+        for field in fields:
+            if field in OFFICIAL_FIELDS:
+                row[field] = event.get(field)
+            elif field == "assertion_basis":
+                row[field] = event.get("contextual_metadata", {}).get("assertion_basis")
+            elif field == "collection_quality":
+                row[field] = {
+                    "completeness": event.get("contextual_metadata", {}).get("completeness"),
+                    "unresolved": event.get("contextual_metadata", {}).get("unresolved"),
+                }
         rows.append(row)
     return json.dumps(rows, indent=2, sort_keys=True)
 
 
 def _render_flat(events: list[dict[str, Any]]) -> str:
+    if len(events) != 1:
+        raise ValueError("flat prompt representation must contain exactly one event")
     rows = []
     for event in events:
+        context = event.get("contextual_metadata", {})
+        completeness = context.get("completeness", {}) if isinstance(context, dict) else {}
+        missing_dimensions = completeness.get("missing_dimensions", []) if isinstance(completeness, dict) else []
         rows.append(
             {
-                "timestamp": event.get("timestamp"),
-                "modality": event.get("modality"),
-                "source": event.get("source"),
-                "signal_type": event.get("signal_type"),
-                "value": event.get("value"),
-                "unit": event.get("unit"),
-                "contextual_metadata": json.dumps(event.get("contextual_metadata", {}), sort_keys=True),
+                "time": event.get("timestamp"),
+                "sense_or_modality": event.get("modality"),
+                "source_id": event.get("source"),
+                "measurement": event.get("signal_type"),
+                "observed_value": event.get("value"),
+                "observed_unit": event.get("unit"),
+                "missing_odor_concentration": "odor_concentration" in {str(item) for item in missing_dimensions} if isinstance(missing_dimensions, list) else False,
             }
         )
-    return json.dumps(rows, indent=2, sort_keys=True)
-
-
-def _render_candidate(events: list[dict[str, Any]]) -> str:
-    rows = []
-    for event in events:
-        row = {field: event.get(field) for field in OFFICIAL_FIELDS}
-        row["assertion_basis"] = event.get("contextual_metadata", {}).get("assertion_basis", "source_record")
-        rows.append(row)
     return json.dumps(rows, indent=2, sort_keys=True)
 
 

@@ -10,18 +10,18 @@ Maturity: research-tool alpha.
 
 Implemented:
 
-- Builds local official manifests for the mock-generator coordination, neutral blind runner, private scorer, schema-envelope planner, multi-LLM exposure runner, and reproducibility packager.
+- Checks TSEL, the mock generator, and all 17 independent testing repositories.
+- Builds local official manifests for mock-generator coordination, neutral TSEL processing, private scoring, the complete one-through-seven field envelope, publication-scope candidate fields, public free-LLM exposure, and reproducibility packaging.
 - Keeps generated run files under ignored `work/`, `outputs/`, and downstream project output/private folders.
 - Converts the rich private olfactory answer key into the stricter local scorer contract without putting private expectations in public manifests.
 - Runs readiness gates and returns a non-zero exit code when any gate fails.
-- Runs a local pilot using dry-run neutral packet validation and dry-run multi-LLM exposure planning.
+- Runs TSEL against the mock-generator packets before building study prompts.
+- Enforces exactly one source event per prompt and one explicit flat-versus-TSEL comparison per matched pair.
+- Requires each pair to be submitted simultaneously in separate fresh chats.
+- Validates the browser-based public free-LLM manifest, prompt budget, and evidence-capture contract.
+- Runs a local pilot using neutral packet validation and dry-run exposure planning.
 
-Not implemented:
-
-- Provider-specific LLM calls.
-- Remote task creation.
-- Git commits or pushes.
-- License selection.
+The public free-LLM collection path is intentionally manual and browser based. It does not use provider APIs, credentials, or paid model adapters. Exact versions are recorded only when visibly exposed by the public interface; otherwise the site, visible mode, date, screenshots, raw response, and integrity result are retained without guessing a version.
 
 ## Usage
 
@@ -46,7 +46,9 @@ python -m pytest -q
 - Testing projects remain independent repositories under the shared project base.
 - Public manifests must not include answer-key fields.
 - Private key transformations are written only to ignored local folders.
-- External LLM collection is blocked until the model adapter commands and provider credentials are supplied outside this repository.
+- Each free-LLM prompt contains one event. Events are never combined into a prompt stream.
+- Each TSEL field condition receives a fresh strict-flat control built from the identical event and question.
+- Public-web evidence requires prompt and response screenshots, raw response logs, visible site or model labels, timestamps, and delivery-integrity results.
 
 ## License Status
 
