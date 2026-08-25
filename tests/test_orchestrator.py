@@ -9,6 +9,7 @@ from experiment_matrix_orchestrator.orchestrator import (
     FIELD_ENVELOPES,
     OFFICIAL_FIELDS,
     PROJECTS,
+    QUALITY_CONTROLS,
     RESEARCH_QUESTIONS,
     _check_free_llm_manifest,
     _check_scorer_key,
@@ -35,11 +36,18 @@ def test_scorer_key_contract_requires_90_packets():
     _check_scorer_key(payload)
 
 
-def test_all_three_approved_research_questions_are_present():
-    assert [row["rq_id"] for row in RESEARCH_QUESTIONS] == ["RQ1", "RQ2", "RQ3"]
-    assert "structural characteristics" in RESEARCH_QUESTIONS[0]["question"]
-    assert RESEARCH_QUESTIONS[1]["question"] == "To what extent does TSEL preserve temporal and stimulus-response structure in generated mock olfactory data compared with flattened representations of the same data?"
-    assert RESEARCH_QUESTIONS[2]["question"] == "How consistently does TSEL support inspectable, reproducible, and clearly labeled mock olfactory data representation before downstream computational modeling?"
+def test_exactly_two_approved_research_questions_are_present():
+    assert [row["rq_id"] for row in RESEARCH_QUESTIONS] == ["RQ1", "RQ2"]
+    assert RESEARCH_QUESTIONS[0]["question"] == "What structural characteristics are required to represent temporally dynamic sensory data within a unified encoding framework?"
+    assert RESEARCH_QUESTIONS[1]["question"] == "To what extent does the proposed temporal encoding layer preserve temporal structure across heterogeneous datasets?"
+    assert QUALITY_CONTROLS == [
+        {
+            "control_id": "QC1",
+            "name": "inspectability-reproducibility-and-mock-labeling",
+            "research_question": False,
+            "evidence_paths": ["mock_manifest_validation", "private_key_boundary", "reproducibility_evidence_packaging", "hash_records"],
+        }
+    ]
 
 
 def test_schema_matrix_has_matching_tsel_and_flat_pairs(tmp_path: Path):
@@ -53,10 +61,12 @@ def test_schema_matrix_has_matching_tsel_and_flat_pairs(tmp_path: Path):
 
     matrix = _schema_matrix(representations)
 
-    assert [row["rq_id"] for row in matrix["research_questions"]] == ["RQ1", "RQ2", "RQ3"]
+    assert [row["rq_id"] for row in matrix["research_questions"]] == ["RQ1", "RQ2"]
+    assert matrix["quality_controls"][0]["research_question"] is False
     assert len(matrix["official_fields"]) == 7
     assert matrix["one_event_per_representation"] is True
-    assert len(matrix["conditions"]) == 2 * len(FIELD_ENVELOPES) * 2
+    thesis_envelopes = [row for row in FIELD_ENVELOPES if row[2] == "thesis"]
+    assert len(matrix["conditions"]) == 2 * len(thesis_envelopes) * 2
     pairs = {}
     for condition in matrix["conditions"]:
         pairs.setdefault(condition["control_pair_id"], set()).add(condition["representation_kind"])
@@ -66,7 +76,7 @@ def test_schema_matrix_has_matching_tsel_and_flat_pairs(tmp_path: Path):
 def test_all_independent_testing_repositories_are_checked():
     testing_projects = [path for path in PROJECTS.values() if path[:2].isdigit()]
 
-    assert len(testing_projects) == 17
+    assert len(testing_projects) == 18
 
 
 def test_strict_flat_is_atomic_and_rejects_event_streams():
@@ -99,7 +109,8 @@ def test_public_example_matrix_is_valid_json():
     data = json.loads(path.read_text(encoding="utf-8"))
 
     assert data["domain"] == "olfaction"
-    assert [row["rq_id"] for row in data["research_questions"]] == ["RQ1", "RQ2", "RQ3"]
+    assert [row["rq_id"] for row in data["research_questions"]] == ["RQ1", "RQ2"]
+    assert data["quality_controls"][0]["research_question"] is False
     assert len(data["official_fields"]) == 7
 
 

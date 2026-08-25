@@ -1,8 +1,8 @@
 # Experiment Matrix Orchestrator
 
-Local orchestration tool for freezing thesis data-collection inputs and checking readiness across the independent TSEL testing projects.
+Local orchestration tool for checking the evidence required by the two ARB-approved TSEL thesis questions and coordinating independent testing projects.
 
-The final design treats seven as the width of the named TSEL envelope, not as a claim that all seven values must always be populated. The structural study exhaustively evaluates all 128 populated/empty masks while retaining every named key. The public-LLM confirmation uses selected full, one-empty, balanced two-empty, and all-empty masks with recursively flattened equal-facts controls.
+The thesis design treats seven as the width of the named TSEL envelope, not as a claim that all seven values must always be populated. The structural study exhaustively evaluates all 128 populated/empty masks while retaining every named key. The approved heterogeneous evaluation applies the four ARB feasibility criteria to five simulated datasets. Public-model exposure and fields beyond seven are publication-only workstreams and do not gate thesis readiness.
 
 This repository is a research tool. It does not belong inside the TSEL repository and does not replace the individual testing projects. It prepares local run artifacts, checks project boundaries, validates manifests, and writes readiness reports before official data collection.
 
@@ -12,18 +12,18 @@ Maturity: research-tool alpha.
 
 Implemented:
 
-- Checks TSEL, the mock generator, and all 17 independent testing repositories.
+- Checks the repositories required by the two approved RQs, including the independent heterogeneous-dataset evaluator.
 - Builds local official manifests for mock-generator coordination, neutral TSEL processing, private scoring, the complete one-through-seven field envelope, publication-scope candidate fields, public free-LLM exposure, and reproducibility packaging.
 - Keeps generated run files under ignored `work/`, `outputs/`, and downstream project output/private folders.
 - Converts the rich private olfactory answer key into the stricter local scorer contract without putting private expectations in public manifests.
-- Runs readiness gates and returns a non-zero exit code when any gate fails.
+- Runs approved-thesis readiness gates and returns a non-zero exit code when any required repository, dataset criterion, occupancy check, or evidence hash fails.
 - Runs TSEL against the mock-generator packets before building study prompts.
 - Enforces exactly one source event per prompt and one explicit flat-versus-TSEL comparison per matched pair.
 - Requires each pair to be submitted in separate fresh chats within 1,000 milliseconds, with both prompts sent before either response becomes visible.
 - Validates the browser-based public free-LLM manifest, prompt budget, and evidence-capture contract.
 - Runs a local pilot using neutral packet validation and dry-run exposure planning.
 
-The public free-LLM collection path is intentionally manual and browser based. It does not use provider APIs, credentials, or paid model adapters. Exact versions are recorded only when visibly exposed by the public interface; otherwise the site, visible mode, date, screenshots, raw response, and integrity result are retained without guessing a version.
+The public free-LLM collection path is retained for post-thesis publication work. It is intentionally manual and browser based and does not affect the approved thesis readiness result.
 
 ## Usage
 
@@ -37,7 +37,7 @@ python -m experiment_matrix_orchestrator.cli pilot
 python -m experiment_matrix_orchestrator.cli final-data-readiness
 ```
 
-`final-data-readiness` returns exit code `1` when the frozen instrument is not ready, `2` when collection can begin but final public-interface evidence is incomplete, and `0` only when final data evidence is complete.
+`final-data-readiness` returns `0` only when the two-RQ approved thesis evidence is complete. Publication-only model-exposure artifacts are excluded from this command's gates.
 
 Run tests:
 
@@ -51,6 +51,10 @@ python -m pytest -q
 - Testing projects remain independent repositories under the shared project base.
 - Public manifests must not include answer-key fields.
 - Private key transformations are written only to ignored local folders.
+- Exactly two research questions appear in thesis readiness output.
+- Inspectability, reproducibility, and mock labeling are quality controls, not a third thesis RQ.
+- Heterogeneous evaluation code and evidence remain in repository 18, outside TSEL.
+- Publication-only field candidates and public-model exposures remain explicitly excluded from thesis readiness.
 - Each free-LLM prompt contains one event. The flat and TSEL prompts in a pair use the identical source event and question, public pair IDs are opaque, and events are never combined into a prompt stream or shared chat context.
 - Readiness requires a pair execution form for UTC submission times, measured submission gap, separate chat identifiers, visible model/mode, and four prompt/response screenshots.
 - Each TSEL field condition receives a fresh strict-flat control built from the identical event and question.

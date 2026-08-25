@@ -7,6 +7,7 @@ from pathlib import Path
 from experiment_matrix_orchestrator.final_readiness import (
     APPROVED_RESEARCH_QUESTIONS,
     _confirmatory_package_gates,
+    _heterogeneous_gates,
     _occupancy_gates,
 )
 
@@ -20,10 +21,52 @@ def _hash(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def test_exactly_three_approved_research_questions_are_frozen():
-    assert len(APPROVED_RESEARCH_QUESTIONS) == 3
-    assert APPROVED_RESEARCH_QUESTIONS[0].startswith("What structural characteristics")
-    assert APPROVED_RESEARCH_QUESTIONS[2].endswith("before downstream computational modeling?")
+def test_exactly_two_approved_research_questions_are_frozen():
+    assert APPROVED_RESEARCH_QUESTIONS == [
+        "What structural characteristics are required to represent temporally dynamic sensory data within a unified encoding framework?",
+        "To what extent does the proposed temporal encoding layer preserve temporal structure across heterogeneous datasets?",
+    ]
+
+
+def test_heterogeneous_gate_requires_all_four_approved_criteria(tmp_path: Path):
+    package = tmp_path / "heterogeneous"
+    evidence = package / "dataset_results.csv"
+    evidence.parent.mkdir(parents=True)
+    evidence.write_text("dataset_id,passed\nfixture,true\n", encoding="utf-8")
+    questions = [
+        {"rq_id": f"RQ{index}", "question": question}
+        for index, question in enumerate(APPROVED_RESEARCH_QUESTIONS, start=1)
+    ]
+    criteria = {
+        "ingest_without_structural_loss": True,
+        "transform_to_seven_field_schema": True,
+        "preserve_temporal_order_and_provenance": True,
+        "consistent_machine_readable_output": True,
+    }
+    _write_json(
+        package / "evaluation_results.json",
+        {
+            "research_questions": questions,
+            "dataset_count": 5,
+            "input_format_count": 4,
+            "modality_count": 4,
+            "total_event_count": 27,
+            "approved_feasibility_criteria": criteria,
+            "all_approved_criteria_passed": True,
+            "datasets": [{"all_checks_passed": True}] * 5,
+        },
+    )
+    _write_json(
+        package / "artifact_manifest.json",
+        {
+            "all_paths_relative": True,
+            "files": [{"path": "dataset_results.csv", "sha256": _hash(evidence)}],
+        },
+    )
+
+    gates = _heterogeneous_gates(package)
+
+    assert all(gate.passed for gate in gates)
 
 
 def test_occupancy_gate_requires_complete_exhaustive_design(tmp_path: Path):

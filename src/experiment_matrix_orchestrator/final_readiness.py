@@ -10,6 +10,9 @@ from typing import Any
 
 
 OCCUPANCY_RELATIVE = Path("08_schema_ablation/study_artifacts/field_occupancy_20260814")
+HETEROGENEOUS_RELATIVE = Path(
+    "18_approved_scope_heterogeneous_dataset_evaluator/study_artifacts/approved_scope_heterogeneous_20260825"
+)
 CONFIRMATORY_RELATIVE = Path(
     "15_multi_llm_representation_exposure_runner/study_packages/official_confirmatory_occupancy_v1"
 )
@@ -17,26 +20,21 @@ COLLECTION_RELATIVE = Path("15_multi_llm_representation_exposure_runner/study_re
 
 APPROVED_RESEARCH_QUESTIONS = [
     "What structural characteristics are required to represent temporally dynamic sensory data within a unified encoding framework?",
-    "To what extent does TSEL preserve temporal and stimulus-response structure in generated mock olfactory data compared with flattened representations of the same data?",
-    "How consistently does TSEL support inspectable, reproducible, and clearly labeled mock olfactory data representation before downstream computational modeling?",
+    "To what extent does the proposed temporal encoding layer preserve temporal structure across heterogeneous datasets?",
 ]
 
 REQUIRED_REPOSITORIES = {
-    "TSEL": "034a486",
-    "03_timeline_recovery_scorer": "6b7a2ff",
-    "04_missingness_collection_quality_scorer": "633e441",
+    "TSEL": "ab45b47",
+    "01_neutral_blind_evaluation_runner": "d9ca3f6",
+    "02_private_answer_key_scorer": "f8a13ec",
     "05_flat_minimal_baseline": "ee3e29b",
     "06_flat_enriched_baseline": "debd670",
     "08_schema_ablation": "5121310",
     "09_rule_based_evaluator": "34075cd",
-    "10_classical_ml_evaluator": "a9940e1",
-    "11_sequence_time_series_evaluator": "6ef3918",
-    "12_optional_token_model_evaluator": "1a25454",
     "13_reproducibility_evidence_packager": "0f01ddf",
     "14_mock_generator_coordination": "f6ee330",
-    "15_multi_llm_representation_exposure_runner": "0c79b06",
-    "16_schema_field_envelope_comparison_planner": "02fb86c",
     "17_experiment_matrix_orchestrator": "df99de2",
+    "18_approved_scope_heterogeneous_dataset_evaluator": "a705731",
 }
 
 
@@ -56,24 +54,22 @@ def run_final_data_readiness(base: str | Path | None = None) -> dict[str, Any]:
     gates: list[FinalGate] = []
     gates.extend(_repository_gates(root))
     gates.extend(_occupancy_gates(root / OCCUPANCY_RELATIVE))
-    gates.extend(_confirmatory_package_gates(root / CONFIRMATORY_RELATIVE))
-    collection_gates = _collection_gates(root / COLLECTION_RELATIVE)
-    gates.extend(collection_gates)
+    gates.extend(_heterogeneous_gates(root / HETEROGENEOUS_RELATIVE))
 
-    collection_ready = all(gate.passed for gate in gates if gate.phase == "collection-readiness")
-    final_data_ready = collection_ready and all(gate.passed for gate in collection_gates)
+    approved_study_ready = all(gate.passed for gate in gates if gate.phase == "approved-thesis")
     report = {
-        "schema_version": "tsel-final-data-readiness-v1",
+        "schema_version": "tsel-approved-thesis-readiness-v2",
         "generated_at_utc": datetime.now(UTC).isoformat(timespec="seconds"),
         "research_questions": [
             {"rq_id": f"RQ{index}", "question": question}
             for index, question in enumerate(APPROVED_RESEARCH_QUESTIONS, start=1)
         ],
-        "collection_ready": collection_ready,
-        "final_data_ready": final_data_ready,
+        "approved_study_ready": approved_study_ready,
+        "collection_ready": approved_study_ready,
+        "final_data_ready": approved_study_ready,
         "interpretation": {
-            "collection_ready": "The frozen instrument can be executed without changing the confirmatory design.",
-            "final_data_ready": "All planned public-interface responses and contemporaneous evidence are present and validated.",
+            "approved_study_ready": "The evidence required by the two ARB-approved research questions is present and validated.",
+            "publication_boundary": "External-system exposure, fields beyond seven, and a standalone reproducibility RQ do not gate the thesis.",
             "occupancy_boundary": "All seven named keys remain present; masks change populated values, not schema width.",
         },
         "gates": [gate.to_record() for gate in gates],
@@ -90,7 +86,7 @@ def _repository_gates(root: Path) -> list[FinalGate]:
     for name, minimum_commit in REQUIRED_REPOSITORIES.items():
         repo = root / name
         if not (repo / ".git").exists():
-            gates.append(FinalGate(f"repository-{name}", False, "independent Git repository missing", "collection-readiness"))
+            gates.append(FinalGate(f"repository-{name}", False, "independent Git repository missing", "approved-thesis"))
             continue
         completed = subprocess.run(
             ["git", "merge-base", "--is-ancestor", minimum_commit, "HEAD"],
@@ -99,7 +95,7 @@ def _repository_gates(root: Path) -> list[FinalGate]:
             text=True,
         )
         detail = f"required commit {minimum_commit} is {'present' if completed.returncode == 0 else 'absent'}"
-        gates.append(FinalGate(f"repository-{name}", completed.returncode == 0, detail, "collection-readiness"))
+        gates.append(FinalGate(f"repository-{name}", completed.returncode == 0, detail, "approved-thesis"))
     return gates
 
 
@@ -121,10 +117,53 @@ def _occupancy_gates(package: Path) -> list[FinalGate]:
             and occupancy.get("conditions_per_event") == 512
         )
         detail = "49 events; 25,088 conditions; 128 masks in two lanes and two empty encodings"
-        gates.append(FinalGate("occupancy-design", design_valid, detail, "collection-readiness"))
-        gates.append(FinalGate("occupancy-artifact-hashes", hashes_valid, "artifact-manifest SHA-256 verification", "collection-readiness"))
+        gates.append(FinalGate("occupancy-design", design_valid, detail, "approved-thesis"))
+        gates.append(FinalGate("occupancy-artifact-hashes", hashes_valid, "artifact-manifest SHA-256 verification", "approved-thesis"))
     except Exception as exc:
-        gates.append(FinalGate("occupancy-package", False, f"{type(exc).__name__}: {exc}", "collection-readiness"))
+        gates.append(FinalGate("occupancy-package", False, f"{type(exc).__name__}: {exc}", "approved-thesis"))
+    return gates
+
+
+def _heterogeneous_gates(package: Path) -> list[FinalGate]:
+    gates: list[FinalGate] = []
+    try:
+        result = _load_json(package / "evaluation_results.json")
+        artifact_manifest = _load_json(package / "artifact_manifest.json")
+        questions = result.get("research_questions", [])
+        criteria = result.get("approved_feasibility_criteria", {})
+        design_valid = (
+            [row.get("rq_id") for row in questions] == ["RQ1", "RQ2"]
+            and [row.get("question") for row in questions] == APPROVED_RESEARCH_QUESTIONS
+            and result.get("dataset_count") == 5
+            and result.get("input_format_count") == 4
+            and result.get("modality_count") == 4
+            and result.get("total_event_count") == 27
+            and result.get("all_approved_criteria_passed") is True
+            and len(criteria) == 4
+            and all(value is True for value in criteria.values())
+            and all(row.get("all_checks_passed") is True for row in result.get("datasets", []))
+        )
+        hashes_valid = artifact_manifest.get("all_paths_relative") is True and _verify_manifest_hashes(
+            package, artifact_manifest.get("files", [])
+        )
+        gates.append(
+            FinalGate(
+                "heterogeneous-approved-criteria",
+                design_valid,
+                "5 datasets; 4 input forms; 4 modalities; 27 events; all four approved criteria pass",
+                "approved-thesis",
+            )
+        )
+        gates.append(
+            FinalGate(
+                "heterogeneous-artifact-hashes",
+                hashes_valid,
+                "repository-relative artifact-manifest SHA-256 verification",
+                "approved-thesis",
+            )
+        )
+    except Exception as exc:
+        gates.append(FinalGate("heterogeneous-package", False, f"{type(exc).__name__}: {exc}", "approved-thesis"))
     return gates
 
 

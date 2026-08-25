@@ -30,6 +30,7 @@ PROJECTS = {
     "llm_exposure": "15_multi_llm_representation_exposure_runner",
     "schema_planner": "16_schema_field_envelope_comparison_planner",
     "orchestrator": "17_experiment_matrix_orchestrator",
+    "heterogeneous": "18_approved_scope_heterogeneous_dataset_evaluator",
     "mock_generator": "olfactory mock Generator/mock-olfactory-generator",
 }
 
@@ -65,14 +66,24 @@ RESEARCH_QUESTIONS = [
     },
     {
         "rq_id": "RQ2",
-        "question": "To what extent does TSEL preserve temporal and stimulus-response structure in generated mock olfactory data compared with flattened representations of the same data?",
-        "evidence_paths": ["neutral_blind_tsel_run", "timeline_recovery", "flattened_baselines", "multi_llm_representation_exposure"],
+        "question": "To what extent does the proposed temporal encoding layer preserve temporal structure across heterogeneous datasets?",
+        "evidence_paths": ["heterogeneous_dataset_evaluation", "neutral_blind_tsel_run", "timeline_recovery", "flattened_baselines"],
     },
+]
+
+QUALITY_CONTROLS = [
     {
-        "rq_id": "RQ3",
-        "question": "How consistently does TSEL support inspectable, reproducible, and clearly labeled mock olfactory data representation before downstream computational modeling?",
+        "control_id": "QC1",
+        "name": "inspectability-reproducibility-and-mock-labeling",
+        "research_question": False,
         "evidence_paths": ["mock_manifest_validation", "private_key_boundary", "reproducibility_evidence_packaging", "hash_records"],
-    },
+    }
+]
+
+PUBLICATION_SCOPE = [
+    "external computational-system representation exposure",
+    "candidate fields beyond the approved seven-field envelope",
+    "standalone reproducibility and inspectability research question",
 ]
 
 QUESTION_SET = [
@@ -411,7 +422,9 @@ def _write_representations(neutral_run_report: Path, output_dir: Path) -> dict[s
             raise ValueError(f"readiness representation must contain exactly one source event: {case_id}")
         flat_path = output_dir / f"{case_id}__flat.json"
         flat_path.write_text(_render_flat(events), encoding="utf-8")
-        for pattern_id, fields, _scope in FIELD_ENVELOPES:
+        for pattern_id, fields, scope in FIELD_ENVELOPES:
+            if scope != "thesis":
+                continue
             tsel_path = output_dir / f"{case_id}__{pattern_id}.json"
             tsel_path.write_text(_render_tsel_fields(events, fields), encoding="utf-8")
             representations[f"{case_id}__{pattern_id}__tsel"] = str(tsel_path)
@@ -424,6 +437,8 @@ def _schema_matrix(representations: dict[str, str]) -> dict[str, Any]:
     case_ids = _representation_case_ids(representations)
     for case_id in case_ids:
         for pattern_id, fields, scope in FIELD_ENVELOPES:
+            if scope != "thesis":
+                continue
             family = pattern_id.removeprefix("tsel_")
             conditions.extend(
                 [
@@ -433,8 +448,10 @@ def _schema_matrix(representations: dict[str, str]) -> dict[str, Any]:
             )
     return {
         "research_questions": RESEARCH_QUESTIONS,
+        "quality_controls": QUALITY_CONTROLS,
+        "publication_scope_excluded_from_thesis": PUBLICATION_SCOPE,
         "official_fields": OFFICIAL_FIELDS,
-        "candidate_fields": CANDIDATE_FIELDS,
+        "publication_candidate_fields_excluded_from_thesis": CANDIDATE_FIELDS,
         "one_event_per_representation": True,
         "simultaneous_flat_tsel_pair_required": True,
         "cases": [{"case_id": case_id, "questions": QUESTION_SET} for case_id in case_ids],

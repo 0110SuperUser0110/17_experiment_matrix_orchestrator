@@ -1,6 +1,6 @@
 # Project Status
 
-Status date: 2026-08-14
+Status date: 2026-08-25
 
 Purpose: coordinate final thesis data-collection readiness across the independent testing repositories.
 
@@ -14,8 +14,9 @@ Ready:
 - readiness checks
 - pilot dry-run orchestration
 - unit tests
-- all 17 independent testing-repository checks
-- exact approved RQ1, RQ2, and RQ3 text
+- approved-scope checks across the required independent testing repositories
+- exact approved RQ1 and RQ2 text, with no third thesis research question
+- approved-scope heterogeneous evaluator and all four ARB feasibility criteria
 - mock-generator to TSEL source path
 - strict atomic flat baseline without nested temporal metadata
 - exhaustive 128-mask populated-value occupancy study while retaining all seven named TSEL keys
@@ -27,7 +28,7 @@ Ready:
 - per-pair execution log and screenshot evidence contract
 - browser-based public free-LLM evidence protocol without APIs or provider credentials
 
-Remaining before confirmatory collection is complete:
+Post-thesis publication work, excluded from thesis readiness:
 
 - execute every frozen matched pair on the selected free interfaces
 - retain the final screenshots, logs, response forms, hashes, and transport-failure ledger

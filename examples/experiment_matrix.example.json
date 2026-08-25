@@ -8,11 +8,14 @@
     },
     {
       "rq_id": "RQ2",
-      "question": "To what extent does TSEL preserve temporal and stimulus-response structure in generated mock olfactory data compared with flattened representations of the same data?"
-    },
+      "question": "To what extent does the proposed temporal encoding layer preserve temporal structure across heterogeneous datasets?"
+    }
+  ],
+  "quality_controls": [
     {
-      "rq_id": "RQ3",
-      "question": "How consistently does TSEL support inspectable, reproducible, and clearly labeled mock olfactory data representation before downstream computational modeling?"
+      "control_id": "QC1",
+      "name": "inspectability-reproducibility-and-mock-labeling",
+      "research_question": false
     }
   ],
   "official_fields": [
